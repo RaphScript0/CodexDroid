@@ -152,6 +152,55 @@ flutter run
 flutter doctor
 ```
 
+## CI/CD: Signed APK Build
+
+This repository includes a GitHub Actions workflow that automatically builds a **signed APK** on every push to `main` and on manual dispatch.
+
+### Workflow Location
+
+`.github/workflows/android-release.yml`
+
+### Required Secrets
+
+Configure these secrets in your GitHub repository settings (`Settings → Secrets and variables → Actions → New repository secret`):
+
+| Secret Name | Description |
+|-------------|-------------|
+| `ANDROID_KEYSTORE_BASE64` | Base64-encoded keystore file (`keystore.jks`) |
+| `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
+| `ANDROID_KEY_ALIAS` | Key alias within the keystore |
+| `ANDROID_KEY_PASSWORD` | Key password |
+
+### How to Generate Keystore & Base64
+
+```bash
+# 1. Generate a new keystore (one-time)
+keytool -genkey -v -keystore keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias your_alias
+
+# 2. Encode to base64 (for GitHub secret)
+base64 keystore.jks > keystore.jks.base64
+
+# 3. Copy the content of keystore.jks.base64 and paste as ANDROID_KEYSTORE_BASE64 secret
+```
+
+### Running the Workflow
+
+- **Automatic**: Runs on every push to `main`
+- **Manual**: Go to `Actions → Android Release (Signed APK) → Run workflow`
+
+### Downloading the APK
+
+1. Navigate to the workflow run in GitHub Actions
+2. Scroll to the "Artifacts" section
+3. Click `app-release-signed` to download the signed APK
+4. APK is retained for 30 days
+
+### Output
+
+- **Artifact Name**: `app-release-signed`
+- **File**: `app-release.apk` (signed release build)
+- **Retention**: 30 days
+
 ## License
 
 MIT
