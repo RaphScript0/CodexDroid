@@ -33,45 +33,12 @@ jobs:
             flutter create . --platforms=android
           fi
 
-      - name: Inject signing config
+      - name: Verify signing secrets
         run: |
-          cd flutter-app/android
-          python - <<'PY'
-          from pathlib import Path
-          import re
-
-          gradle = Path('app/build.gradle')
-          text = gradle.read_text()
-
-          if 'def keystoreProperties' not in text:
-            header = """def keystoreProperties = new Properties()\n"""
-            header += """def keystorePropertiesFile = rootProject.file('key.properties')\n"""
-            header += """if (keystorePropertiesFile.exists()) {\n"""
-            header += """    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))\n"""
-            header += """}\n\n"""
-            text = header + text
-
-          if 'signingConfigs' not in text:
-            insert = """
-    signingConfigs {
-        release {
-            keyAlias keystoreProperties['keyAlias']
-            keyPassword keystoreProperties['keyPassword']
-            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
-            storePassword keystoreProperties['storePassword']
-        }
-    }
-"""
-            text = re.sub(r'(defaultConfig\s*\{[^\}]*\}\s*)', r"\1\n" + insert, text, count=1, flags=re.S)
-
-          if 'signingConfig signingConfigs.release' not in text:
-            if 'signingConfig signingConfigs.debug' in text:
-              text = text.replace('signingConfig signingConfigs.debug', 'signingConfig signingConfigs.release')
-            else:
-              text = re.sub(r'(release\s*\{)', r"\1\n            signingConfig signingConfigs.release", text, count=1)
-
-          gradle.write_text(text)
-          PY
+          [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ] || (echo "Missing ANDROID_KEYSTORE_BASE64" && exit 1)
+          [ -n "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" ] || (echo "Missing ANDROID_KEYSTORE_PASSWORD" && exit 1)
+          [ -n "${{ secrets.ANDROID_KEY_ALIAS }}" ] || (echo "Missing ANDROID_KEY_ALIAS" && exit 1)
+          [ -n "${{ secrets.ANDROID_KEY_PASSWORD }}" ] || (echo "Missing ANDROID_KEY_PASSWORD" && exit 1)
 
       - name: Decode Keystore
         env:
@@ -86,7 +53,7 @@ jobs:
           storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
           keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
-          storeFile=app/keystore.jks
+          storeFile=keystore.jks
           EOF
 
       - name: Install Dependencies
