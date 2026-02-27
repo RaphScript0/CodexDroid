@@ -19,20 +19,15 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    widget.websocketService.addListener(_onConnectionChange);
+    // List rebuilds are handled by ListenableBuilder for efficient updates
     _setupMessageListener();
   }
 
   @override
   void dispose() {
-    widget.websocketService.removeListener(_onConnectionChange);
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
-  }
-
-  void _onConnectionChange() {
-    setState(() {});
   }
 
   void _setupMessageListener() {
@@ -115,20 +110,25 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                color: _getConnectionColor(),
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(_getConnectionText()),
-          ],
+        title: ListenableBuilder(
+          listenable: widget.websocketService,
+          builder: (context, _) {
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: _getConnectionColor(),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(_getConnectionText()),
+              ],
+            );
+          },
         ),
         actions: [
           IconButton(
@@ -146,14 +146,19 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              itemCount: widget.websocketService.messages.length,
-              itemBuilder: (context, index) {
-                final message = widget.websocketService.messages[index];
-                final isUser = message.startsWith('user:');
-                return _buildMessageBubble(message, isUser);
+            child: ListenableBuilder(
+              listenable: widget.websocketService,
+              builder: (context, _) {
+                return ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: widget.websocketService.messages.length,
+                  itemBuilder: (context, index) {
+                    final message = widget.websocketService.messages[index];
+                    final isUser = message.startsWith('user:');
+                    return _buildMessageBubble(message, isUser);
+                  },
+                );
               },
             ),
           ),
@@ -242,16 +247,21 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          CircleAvatar(
-            backgroundColor: widget.websocketService.connectionState == WsConnectionState.connected
-                ? Colors.blue
-                : Colors.grey,
-            child: IconButton(
-              icon: const Icon(Icons.send, color: Colors.white, size: 20),
-              onPressed: widget.websocketService.connectionState == WsConnectionState.connected
-                  ? _sendMessage
-                  : null,
-            ),
+          ListenableBuilder(
+            listenable: widget.websocketService,
+            builder: (context, _) {
+              return CircleAvatar(
+                backgroundColor: widget.websocketService.connectionState == WsConnectionState.connected
+                    ? Colors.blue
+                    : Colors.grey,
+                child: IconButton(
+                  icon: const Icon(Icons.send, color: Colors.white, size: 20),
+                  onPressed: widget.websocketService.connectionState == WsConnectionState.connected
+                      ? _sendMessage
+                      : null,
+                ),
+              );
+            },
           ),
         ],
       ),
