@@ -78,7 +78,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _toggleConnection() {
     final state = widget.websocketService.connectionState;
-    if (state == ConnectionState.connected) {
+    if (state == WsConnectionState.connected) {
       widget.websocketService.disconnect();
     } else {
       widget.websocketService.connect();
@@ -87,26 +87,26 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Color _getConnectionColor() {
     switch (widget.websocketService.connectionState) {
-      case ConnectionState.connected:
+      case WsConnectionState.connected:
         return Colors.green;
-      case ConnectionState.connecting:
+      case WsConnectionState.connecting:
         return Colors.orange;
-      case ConnectionState.error:
+      case WsConnectionState.error:
         return Colors.red;
-      case ConnectionState.disconnected:
+      case WsConnectionState.disconnected:
         return Colors.grey;
     }
   }
 
   String _getConnectionText() {
     switch (widget.websocketService.connectionState) {
-      case ConnectionState.connected:
+      case WsConnectionState.connected:
         return 'Connected';
-      case ConnectionState.connecting:
+      case WsConnectionState.connecting:
         return 'Connecting...';
-      case ConnectionState.error:
+      case WsConnectionState.error:
         return 'Error';
-      case ConnectionState.disconnected:
+      case WsConnectionState.disconnected:
         return 'Disconnected';
     }
   }
@@ -238,17 +238,17 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
               onSubmitted: (_) => _sendMessage(),
-              enabled: widget.websocketService.connectionState == ConnectionState.connected,
+              enabled: widget.websocketService.connectionState == WsConnectionState.connected,
             ),
           ),
           const SizedBox(width: 8),
           CircleAvatar(
-            backgroundColor: widget.websocketService.connectionState == ConnectionState.connected
+            backgroundColor: widget.websocketService.connectionState == WsConnectionState.connected
                 ? Colors.blue
                 : Colors.grey,
             child: IconButton(
               icon: const Icon(Icons.send, color: Colors.white, size: 20),
-              onPressed: widget.websocketService.connectionState == ConnectionState.connected
+              onPressed: widget.websocketService.connectionState == WsConnectionState.connected
                   ? _sendMessage
                   : null,
             ),

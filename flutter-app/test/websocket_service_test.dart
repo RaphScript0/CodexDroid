@@ -17,7 +17,7 @@ void main() {
     });
 
     test('initial state is disconnected', () {
-      expect(service.connectionState, ConnectionState.disconnected);
+      expect(service.connectionState, WsConnectionState.disconnected);
       expect(service.messages, isEmpty);
     });
 
@@ -103,13 +103,13 @@ void main() {
     });
   });
 
-  group('ConnectionState enum', () {
+  group('WsConnectionState enum', () {
     test('has all expected states', () {
-      expect(ConnectionState.values.length, 4);
-      expect(ConnectionState.values.contains(ConnectionState.disconnected), isTrue);
-      expect(ConnectionState.values.contains(ConnectionState.connecting), isTrue);
-      expect(ConnectionState.values.contains(ConnectionState.connected), isTrue);
-      expect(ConnectionState.values.contains(ConnectionState.error), isTrue);
+      expect(WsConnectionState.values.length, 4);
+      expect(WsConnectionState.values.contains(WsConnectionState.disconnected), isTrue);
+      expect(WsConnectionState.values.contains(WsConnectionState.connecting), isTrue);
+      expect(WsConnectionState.values.contains(WsConnectionState.connected), isTrue);
+      expect(WsConnectionState.values.contains(WsConnectionState.error), isTrue);
     });
   });
 }

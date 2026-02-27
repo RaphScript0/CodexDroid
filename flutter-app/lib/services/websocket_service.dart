@@ -3,14 +3,14 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-enum ConnectionState { disconnected, connecting, connected, error }
+enum WsConnectionState { disconnected, connecting, connected, error }
 
 class WebSocketService extends ChangeNotifier {
   final String serverIp;
   final String serverPort;
   
   WebSocketChannel? _channel;
-  ConnectionState _connectionState = ConnectionState.disconnected;
+  WsConnectionState _connectionState = WsConnectionState.disconnected;
   final List<String> _messages = [];
   final StreamController<String> _messageController = StreamController<String>.broadcast();
   Timer? _reconnectTimer;
@@ -21,17 +21,17 @@ class WebSocketService extends ChangeNotifier {
     required this.serverPort,
   });
 
-  ConnectionState get connectionState => _connectionState;
+  WsConnectionState get connectionState => _connectionState;
   List<String> get messages => List.unmodifiable(_messages);
   Stream<String> get messageStream => _messageController.stream;
 
   void connect() {
-    if (_connectionState == ConnectionState.connected || 
-        _connectionState == ConnectionState.connecting) {
+    if (_connectionState == WsConnectionState.connected || 
+        _connectionState == WsConnectionState.connecting) {
       return;
     }
 
-    _setConnectionState(ConnectionState.connecting);
+    _setConnectionState(WsConnectionState.connecting);
     
     try {
       final uri = Uri.parse('ws://$serverIp:$serverPort');
@@ -51,8 +51,8 @@ class WebSocketService extends ChangeNotifier {
       
       // Assume connected after successful connection setup
       Future.delayed(const Duration(milliseconds: 500), () {
-        if (_connectionState == ConnectionState.connecting) {
-          _setConnectionState(ConnectionState.connected);
+        if (_connectionState == WsConnectionState.connecting) {
+          _setConnectionState(WsConnectionState.connected);
         }
       });
     } catch (e) {
@@ -67,7 +67,7 @@ class WebSocketService extends ChangeNotifier {
     
     _channel?.sink.close();
     _channel = null;
-    _setConnectionState(ConnectionState.disconnected);
+    _setConnectionState(WsConnectionState.disconnected);
   }
 
   void reconnect() {
@@ -83,7 +83,7 @@ class WebSocketService extends ChangeNotifier {
   }
 
   void sendMessage(String message) {
-    if (_connectionState != ConnectionState.connected || _channel == null) {
+    if (_connectionState != WsConnectionState.connected || _channel == null) {
       return;
     }
     
@@ -117,12 +117,12 @@ class WebSocketService extends ChangeNotifier {
 
   void _handleError(dynamic error) {
     debugPrint('WebSocket error: $error');
-    _setConnectionState(ConnectionState.error);
+    _setConnectionState(WsConnectionState.error);
     
     // Auto-reconnect on error
     if (!_isReconnecting) {
       _reconnectTimer = Timer(const Duration(seconds: 3), () {
-        if (_connectionState != ConnectionState.connected) {
+        if (_connectionState != WsConnectionState.connected) {
           reconnect();
         }
       });
@@ -130,13 +130,13 @@ class WebSocketService extends ChangeNotifier {
   }
 
   void _handleDisconnect() {
-    if (_connectionState == ConnectionState.connected) {
-      _setConnectionState(ConnectionState.disconnected);
+    if (_connectionState == WsConnectionState.connected) {
+      _setConnectionState(WsConnectionState.disconnected);
       
       // Auto-reconnect on unexpected disconnect
       if (!_isReconnecting) {
         _reconnectTimer = Timer(const Duration(seconds: 3), () {
-          if (_connectionState != ConnectionState.connected) {
+          if (_connectionState != WsConnectionState.connected) {
             reconnect();
           }
         });
@@ -144,7 +144,7 @@ class WebSocketService extends ChangeNotifier {
     }
   }
 
-  void _setConnectionState(ConnectionState state) {
+  void _setConnectionState(WsConnectionState state) {
     _connectionState = state;
     notifyListeners();
   }

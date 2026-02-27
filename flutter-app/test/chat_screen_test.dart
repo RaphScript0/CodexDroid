@@ -49,7 +49,7 @@ void main() {
 
       // Add a user message
       mockService.addMessage('user: Hello');
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       expect(find.text('Hello'), findsOneWidget);
     });
@@ -128,7 +128,7 @@ void main() {
       );
 
       mockService.addMessage('Server response');
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       final alignWidget = tester.widget<Align>(
         find.ancestor(
@@ -148,7 +148,7 @@ void main() {
       );
 
       mockService.addMessage('user: Test');
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       final container = tester.widget<Container>(
         find.ancestor(
@@ -169,7 +169,7 @@ void main() {
       );
 
       mockService.addMessage('user: Hello');
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       final container = tester.widget<Container>(
         find.ancestor(
