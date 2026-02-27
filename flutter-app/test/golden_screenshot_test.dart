@@ -9,15 +9,12 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 void main() {
-  // Mock SharedPreferences before tests
-  setUpAll(() {
+  testWidgets('ChatScreen golden screenshot', (WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({
       'server_ip': '192.168.1.100',
       'server_port': '8765',
     });
-  });
 
-  testWidgets('ChatScreen golden screenshot', (WidgetTester tester) async {
     final service = WebSocketService(serverIp: '192.168.1.100', serverPort: '8765');
     service.setConnectionStateForTesting(WsConnectionState.connected);
     service.addMessage('user: Hello!');
@@ -44,7 +41,6 @@ void main() {
     await tester.pumpAndSettle();
     await tester.pump(const Duration(milliseconds: 500));
     
-    // Capture screenshot using the RepaintBoundary key
     final boundary = tester.renderObject(find.byKey(boundaryKey)) as RenderRepaintBoundary;
     final image = await boundary.toImage(pixelRatio: 2.0);
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -62,26 +58,29 @@ void main() {
   });
   
   testWidgets('SettingsScreen golden screenshot', (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({
+      'server_ip': '192.168.1.100',
+      'server_port': '8765',
+    });
+
     final service = WebSocketService(serverIp: '192.168.1.100', serverPort: '8765');
     service.setConnectionStateForTesting(WsConnectionState.connected);
     
     final boundaryKey = GlobalKey();
     
-    // Use larger container to avoid overflow
+    // Use taller container to avoid overflow
     await tester.pumpWidget(
       MaterialApp(
         home: RepaintBoundary(
           key: boundaryKey,
           child: Container(
             width: 800,
-            height: 800,
+            height: 1200,
             color: Colors.white,
-            child: SingleChildScrollView(
-              child: SettingsScreen(
-                websocketService: service,
-                initialIp: '192.168.1.100',
-                initialPort: '8765',
-              ),
+            child: SettingsScreen(
+              websocketService: service,
+              initialIp: '192.168.1.100',
+              initialPort: '8765',
             ),
           ),
         ),
@@ -89,16 +88,14 @@ void main() {
     );
     
     await tester.pumpAndSettle();
-    await tester.pump(const Duration(milliseconds: 1000));
+    await tester.pump(const Duration(milliseconds: 2000));
     await tester.pump();
     
-    // Verify the screen is loaded (not showing loading spinner)
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.text('Settings'), findsOneWidget);
     expect(find.text('Server IP Address'), findsOneWidget);
     expect(find.text('Server Port'), findsOneWidget);
     
-    // Capture screenshot
     final boundary = tester.renderObject(find.byKey(boundaryKey)) as RenderRepaintBoundary;
     final image = await boundary.toImage(pixelRatio: 2.0);
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -112,6 +109,6 @@ void main() {
     file.writeAsBytesSync(pngBytes);
     print('Saved settings_screen.png: ${file.path} (${pngBytes.length} bytes)');
     
-    expect(pngBytes.length, greaterThan(1000));
+    expect(pngBytes.length, greaterThan(5000));
   });
 }
