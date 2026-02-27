@@ -149,6 +149,12 @@ class WebSocketService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Test helper: set connection state directly for testing
+  void setConnectionStateForTesting(WsConnectionState state) {
+    _connectionState = state;
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _reconnectTimer?.cancel();

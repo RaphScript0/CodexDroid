@@ -10,6 +10,7 @@ import 'dart:ui' as ui;
 void main() {
   testWidgets('ChatScreen golden screenshot', (WidgetTester tester) async {
     final service = WebSocketService(serverIp: '192.168.1.100', serverPort: '8765');
+    service.setConnectionStateForTesting(WsConnectionState.connected);
     service.addMessage('user: Hello!');
     service.addMessage('server: Server response here');
     
@@ -42,6 +43,7 @@ void main() {
   
   testWidgets('SettingsScreen golden screenshot', (WidgetTester tester) async {
     final service = WebSocketService(serverIp: '192.168.1.100', serverPort: '8765');
+    service.setConnectionStateForTesting(WsConnectionState.connected);
     
     final boundaryKey = GlobalKey();
     
