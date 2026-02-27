@@ -25,7 +25,8 @@ void main() {
       ),
     );
     
-    await tester.pump();
+    // Pump multiple times to ensure UI is fully rendered
+    await tester.pumpAndSettle();
     
     final boundary = tester.renderObject(find.byKey(boundaryKey)) as RenderRepaintBoundary;
     final image = await boundary.toImage(pixelRatio: 3.0);
@@ -60,6 +61,10 @@ void main() {
       ),
     );
     
+    // Wait for async SharedPreferences load to complete
+    // pumpAndSettle may hang, so use fixed duration pumps
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 500));
     await tester.pump();
     
     final boundary = tester.renderObject(find.byKey(boundaryKey)) as RenderRepaintBoundary;
