@@ -153,7 +153,7 @@ async function createSession(clientId) {
 
     codexWs.on('close', () => {
       debug(`Session ${sessionId} app-server connection closed`);
-      sessions.delete(sessionId);
+      // sessions.delete(sessionId); // Keep session alive until client explicitly closes
     });
 
     codexWs.on('error', (error) => {
@@ -210,7 +210,7 @@ function closeSession(sessionId) {
     if (session.codexWs) {
       session.codexWs.close();
     }
-    sessions.delete(sessionId);
+    // sessions.delete(sessionId); // Keep session alive until client explicitly closes
     info(`Session closed: ${sessionId}`);
   }
 }

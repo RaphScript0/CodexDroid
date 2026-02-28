@@ -20,13 +20,14 @@ wss.on('connection', (ws) => {
         { type: 'chunk', content: 'Hello' },
         { type: 'chunk', content: ' from' },
         { type: 'chunk', content: ' Codex!' },
-        { type: 'done', result: 'Hello from Codex!' }
+        { type: 'done', result: 'Hello from Codex!', final: true }
       ];
 
       let i = 0;
       const interval = setInterval(() => {
         if (i >= chunks.length) {
           clearInterval(interval);
+          // Keep connection open - don't close after sending chunks
           return;
         }
         const chunk = chunks[i];
@@ -43,7 +44,12 @@ wss.on('connection', (ws) => {
     }
   });
 
+  // Connection close handler - keep connection open until client closes
   ws.on('close', () => {
     console.log(`[mock-codex] Session closed: ${sessionId}`);
+  });
+
+  ws.on('error', (error) => {
+    console.error(`[mock-codex] Session error: ${error.message}`);
   });
 });
