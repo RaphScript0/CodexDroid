@@ -33,6 +33,7 @@ const BRIDGE_PORT = parseInt(process.env.BRIDGE_PORT, 10) || 4501;
 const BRIDGE_HOST = process.env.BRIDGE_HOST || '0.0.0.0';
 const CODEX_APP_SERVER_URL = process.env.CODEX_APP_SERVER_URL || 'ws://127.0.0.1:4500';
 const START_APP_SERVER = process.env.START_APP_SERVER !== 'false';
+const SESSION_CREATE_TIMEOUT_MS = parseInt(process.env.SESSION_CREATE_TIMEOUT_MS, 10) || 5000;
 
 // State
 const clients = new Map(); // clientId -> WebSocket
@@ -100,7 +101,7 @@ function startAppServer() {
 /**
  * Connect to Codex app-server WebSocket
  */
-function connectToAppServer() {
+function connectToAppServer(timeoutMs = 5000) {
   return new Promise((resolve, reject) => {
     debug(`Connecting to app-server at ${CODEX_APP_SERVER_URL}...`);
     
@@ -109,11 +110,11 @@ function connectToAppServer() {
     const timeout = setTimeout(() => {
       if (ws.readyState === WebSocket.CONNECTING) {
         ws.close();
-        const msg = `Connection timeout to ${CODEX_APP_SERVER_URL}`;
+        const msg = `Connection timeout to ${CODEX_APP_SERVER_URL} after ${timeoutMs}ms`;
         error(msg);
         reject(new Error(msg));
       }
-    }, 5000);
+    }, timeoutMs);
 
     ws.on('open', () => {
       clearTimeout(timeout);
@@ -135,7 +136,7 @@ async function createSession(clientId) {
   try {
     const sessionId = generateSessionId();
     debug(`Creating session for client ${clientId}`);
-    const codexWs = await connectToAppServer();
+    const codexWs = await connectToAppServer(SESSION_CREATE_TIMEOUT_MS);
     
     sessions.set(sessionId, {
       clientId,
@@ -492,6 +493,11 @@ function createServer() {
 function createHealthServer() {
   const server = http.createServer((req, res) => {
     if (req.url === '/health') {
+    // RPC Ping endpoint - test app-server connectivity
+    if (req.url === '/rpc-ping') {
+      handleRpcPing(req, res);
+      return;
+    }
       const status = {
         status: 'ok',
         uptime: process.uptime(),
@@ -517,6 +523,68 @@ function createHealthServer() {
   });
 
   return server;
+}
+
+
+/**
+ * Handle RPC ping request - test connection to app-server
+ */
+async function handleRpcPing(req, res) {
+  const startTime = Date.now();
+  
+  debug(`RPC ping request received`);
+  
+  try {
+    const ws = await connectToAppServer(SESSION_CREATE_TIMEOUT_MS);
+    
+    // Send a simple ping request to app-server
+    const pingId = `ping-${Date.now()}`;
+    const pingRequest = JSON.stringify({
+      jsonrpc: '2.0',
+      id: pingId,
+      method: 'ping',
+      params: {}
+    });
+    
+    const pingResponse = await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        ws.close();
+        reject(new Error('Ping response timeout'));
+      }, 2000);
+      
+      ws.once('message', (data) => {
+        clearTimeout(timeout);
+        ws.close();
+        resolve(JSON.parse(data.toString()));
+      });
+      
+      ws.once('error', reject);
+      ws.send(pingRequest);
+    });
+    
+    const totalLatency = Date.now() - startTime;
+    debug(`RPC ping successful: ${totalLatency}ms`);
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      status: 'ok',
+      appServer: 'connected',
+      latencyMs: totalLatency,
+      timestamp: new Date().toISOString()
+    }));
+  } catch (error) {
+    const latency = Date.now() - startTime;
+    error(`RPC ping failed: ${error.message}`);
+    
+    res.writeHead(503, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      status: 'error',
+      appServer: 'disconnected',
+      latencyMs: latency,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }));
+  }
 }
 
 /**

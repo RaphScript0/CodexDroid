@@ -44,6 +44,8 @@ npm install
 | `START_APP_SERVER` | `true` | Whether to spawn `codex app-server` process |
 | `LOG_LEVEL` | `info` | Logging level: `debug`, `info`, `warn`, `error` |
 | `BRIDGE_DEBUG` | unset | Set to `1` to enable debug logging (shortcut for `LOG_LEVEL=debug`) |
+| `SESSION_CREATE_TIMEOUT_MS` | `5000` | Timeout for session creation and app-server connection |
+| `RPC_PING_ENDPOINT` | `/rpc-ping` | HTTP endpoint to test app-server connectivity |
 
 ## Usage
 
@@ -67,6 +69,44 @@ BRIDGE_HOST=0.0.0.0 BRIDGE_PORT=4502 npm start
 ```
 
 ### Debug Logging
+
+
+### RPC Ping Endpoint
+
+Test connectivity to the Codex app-server with the built-in HTTP ping endpoint:
+
+```bash
+# Quick health check
+curl http://127.0.0.1:4502/rpc-ping
+
+# Sample response (success)
+{
+  "status": "ok",
+  "appServer": "connected",
+  "latencyMs": 45,
+  "timestamp": "2026-02-28T10:30:00.000Z"
+}
+
+# Sample response (app-server unavailable)
+{
+  "status": "error",
+  "appServer": "disconnected",
+  "latencyMs": 5023,
+  "error": "Connection timeout to ws://127.0.0.1:4500 after 5000ms",
+  "timestamp": "2026-02-28T10:30:05.000Z"
+}
+```
+
+This endpoint:
+1. Connects to the configured `CODEX_APP_SERVER_URL`
+2. Sends a JSON-RPC `ping` request
+3. Measures round-trip latency
+4. Returns status and timing information
+
+Useful for:
+- Health checks in orchestration systems
+- Monitoring app-server availability
+- Debugging connection issues
 
 Set `LOG_LEVEL=debug` or `BRIDGE_DEBUG=1` to enable verbose logging:
 
