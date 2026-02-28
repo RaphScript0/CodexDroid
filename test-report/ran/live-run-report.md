@@ -78,6 +78,24 @@ node test/test-client.js
 
 ## Root Cause Analysis
 
+### Bug 1: Variable Shadowing in Error Handler (FIXED)
+
+**File:** `bridge-server/index.js` line 240
+
+The callback parameter `error` shadows the `error()` logging function:
+
+```javascript
+.catch((error) => {
+  error(`session.create failed: ${error.message}`);  // ❌ error is now the param, not the function
+}
+```
+
+This causes: `TypeError: error is not a function`
+
+**Fix Applied:** Renamed callback parameter to `err`.
+
+### Bug 2: Mock Codex Closes Connection Prematurely
+
 ### Problem: Mock Codex Closes Connection Prematurely
 
 The mock-codex.js server has a critical bug:

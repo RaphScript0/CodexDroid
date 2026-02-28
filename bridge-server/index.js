@@ -236,14 +236,14 @@ function handleClientRequest(clientId, request) {
               result: { sessionId }
             });
           })
-          .catch((error) => {
-            error(`session.create failed: ${error.message}`);
+          .catch((err) => {
+            error(`session.create failed: ${err.message}`);
             resolve({
               jsonrpc: '2.0',
               id,
               error: {
                 code: -32001,
-                message: `Failed to create session: ${error.message}`,
+                message: `Failed to create session: ${err.message}`,
                 details: error.stack
               }
             });
@@ -641,7 +641,7 @@ async function main() {
   info('Ready for connections');
 }
 
-main().catch((error) => {
+main().catch((err) => {
   error(`Fatal error: ${error.message}`);
   error(error.stack);
   process.exit(1);
