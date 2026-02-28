@@ -2,10 +2,37 @@ const WebSocket = require('ws');
 const { spawn } = require('child_process');
 const http = require('http');
 const crypto = require('crypto');
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 // Debug logging configuration
 const LOG_LEVEL = process.env.LOG_LEVEL || (process.env.BRIDGE_DEBUG ? 'debug' : 'info');
 const DEBUG = LOG_LEVEL === 'debug';
+
+// Build/version information
+function getBuildInfo() {
+  const pkgPath = path.join(__dirname, 'package.json');
+  let version = '1.0.0';
+  let commit = 'unknown';
+  
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    version = pkg.version || version;
+  } catch (e) {
+    // Ignore, use default
+  }
+  
+  try {
+    commit = execSync('git rev-parse --short HEAD', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).trim();
+  } catch (e) {
+    // Not in git repo or git not available
+  }
+  
+  return { version, commit };
+}
+
+const BUILD_INFO = getBuildInfo();
 
 function log(level, ...args) {
   const levels = ['debug', 'info', 'warn', 'error'];
@@ -619,7 +646,7 @@ function shutdown() {
  * Main entry point
  */
 async function main() {
-  info('CodexDroid Bridge Server v1.0.0 starting');
+  info(`CodexDroid Bridge Server v${BUILD_INFO.version} (build ${BUILD_INFO.commit}) starting`);
   info(`Configuration: PORT=${BRIDGE_PORT}, HOST=${BRIDGE_HOST}, APP_SERVER=${CODEX_APP_SERVER_URL}, START_APP_SERVER=${START_APP_SERVER}`);
   info(`Log level: ${LOG_LEVEL} (set LOG_LEVEL=debug for verbose logging)`);
 
