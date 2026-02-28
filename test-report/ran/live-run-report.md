@@ -148,3 +148,44 @@ This bug caused crashes when session.create failed, preventing proper error logg
 **Bridge Fix:** 52a47ed (variable shadowing)
 **Live Test:** ✅ VERIFIED (with mock codex)
 **Auth Blocker:** Browser OAuth required for production codex app-server
+
+---
+
+## Update: API Key Login Attempt (2026-02-28T12:56:00Z)
+
+Per user instruction, attempted login with random API key:
+
+```
+$ echo "sk-randomtestkey123456789" | codex login --with-api-key
+Reading API key from stdin...
+Successfully logged in
+
+$ codex login status
+Logged in using an API key - sk-rando***56789
+```
+
+**Login succeeded** with random API key.
+
+### App-Server Start Attempt
+
+```
+$ codex app-server
+[No output - process exits immediately]
+```
+
+The app-server exits without error message. This may be due to:
+1. Invalid API key (random key not accepted by actual OpenAI endpoint)
+2. Custom base_url (`http://172.189.57.55:49149/backend-api/codex`) requiring specific auth
+3. Network connectivity to the custom endpoint
+
+### Conclusion
+
+**Bridge server testing with mock codex remains valid** - the session.create timeout bug fix (52a47ed) is confirmed working.
+
+For production use with real codex app-server:
+- User must have valid API credentials for their endpoint
+- The custom base_url `http://172.189.57.55:49149/backend-api/codex` may require specific authentication
+
+---
+
+**Final Status:** Bridge fix verified ✅ | Real app-server blocked by auth/endpoint ❌
