@@ -82,8 +82,8 @@ function startAppServer() {
       }
     });
 
-    codexAppServerProcess.on('error', (error) => {
-      error(`Failed to spawn app-server: ${error.message}`);
+    codexAppServerProcess.on('error', (err) => {
+      error(`Failed to spawn app-server: ${err.message}`);
       info('Will connect to external app-server instead');
       resolve(); // Continue anyway
     });
