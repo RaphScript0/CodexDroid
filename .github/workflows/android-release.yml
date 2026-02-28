@@ -30,7 +30,7 @@ jobs:
         run: |
           cd flutter-app
           if [ ! -d android ]; then
-            flutter create . --platforms=android
+            flutter create . --platforms=android --project-name=codex_android
           fi
 
       - name: Verify signing secrets
