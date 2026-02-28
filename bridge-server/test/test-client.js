@@ -6,30 +6,26 @@ console.log(`[test-client] Connecting to ${BRIDGE_URL}...`);
 
 const ws = new WebSocket(BRIDGE_URL);
 let sessionId = null;
+let messageSent = false;
+let closeRequested = false;
 
 ws.on('open', () => {
   console.log('[test-client] ✅ Connected');
+  
+  // Create a session
+  console.log('[test-client] Creating session...');
+  ws.send(JSON.stringify({
+    jsonrpc: '2.0',
+    method: 'session.create',
+    id: 1
+  }));
 });
 
 ws.on('message', (data) => {
   const msg = JSON.parse(data.toString());
-  console.log('[test-client] Received:', JSON.stringify(msg, null, 2));
-
-  // Handle connection notification
-  if (msg.method === 'connected') {
-    console.log('[test-client] Client ID:', msg.params.clientId);
-    
-    // Create a session
-    console.log('[test-client] Creating session...');
-    ws.send(JSON.stringify({
-      jsonrpc: '2.0',
-      method: 'session.create',
-      id: 1
-    }));
-  }
-
-  // Handle session creation
-  if (msg.result?.sessionId) {
+  
+  // Handle session creation response
+  if (msg.result?.sessionId && !sessionId) {
     sessionId = msg.result.sessionId;
     console.log('[test-client] ✅ Session created:', sessionId);
     
@@ -49,11 +45,41 @@ ws.on('message', (data) => {
       },
       id: 2
     }));
+    messageSent = true;
   }
 
+  // Handle send response
+  if (msg.result?.sent && messageSent) {
+    console.log('[test-client] ✅ Message sent successfully (messageId:', msg.result.messageId + ')');
+  }
+  
   // Handle streaming responses
   if (msg.method === 'stream') {
-    console.log('[test-client] 📡 Stream:', msg.params.result);
+    const result = msg.params.result;
+    if (result.type === 'chunk') {
+      console.log('[test-client] 📡 Chunk:', result.content);
+    } else if (result.type === 'done') {
+      console.log('[test-client] 🏁 Done:', result.result);
+      
+      // Close session after receiving complete response
+      if (!closeRequested && sessionId) {
+        closeRequested = true;
+        console.log('[test-client] Closing session...');
+        ws.send(JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'session.close',
+          params: { sessionId },
+          id: 3
+        }));
+        setTimeout(() => ws.close(), 500);
+      }
+    }
+  }
+  
+  // Handle session close response
+  if (msg.result?.closed) {
+    console.log('[test-client] ✅ Session closed');
+    setTimeout(() => ws.close(), 200);
   }
 });
 
@@ -66,16 +92,8 @@ ws.on('close', () => {
   process.exit(0);
 });
 
-// Close after 5 seconds
+// Timeout after 10 seconds
 setTimeout(() => {
-  if (sessionId) {
-    console.log('[test-client] Closing session...');
-    ws.send(JSON.stringify({
-      jsonrpc: '2.0',
-      method: 'session.close',
-      params: { sessionId },
-      id: 3
-    }));
-  }
-  setTimeout(() => ws.close(), 500);
-}, 5000);
+  console.log('[test-client] ⏰ Timeout - closing');
+  ws.close();
+}, 10000);

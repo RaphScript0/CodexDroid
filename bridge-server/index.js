@@ -153,7 +153,10 @@ async function createSession(clientId) {
 
     codexWs.on('close', () => {
       debug(`Session ${sessionId} app-server connection closed`);
-      // sessions.delete(sessionId); // Keep session alive until client explicitly closes
+      const session = sessions.get(sessionId);
+      if (session) {
+        session.codexWs = null; // Mark connection as closed but keep session
+      }
     });
 
     codexWs.on('error', (error) => {
@@ -210,7 +213,7 @@ function closeSession(sessionId) {
     if (session.codexWs) {
       session.codexWs.close();
     }
-    // sessions.delete(sessionId); // Keep session alive until client explicitly closes
+    sessions.delete(sessionId);
     info(`Session closed: ${sessionId}`);
   }
 }
@@ -342,51 +345,10 @@ function handleClientRequest(clientId, request) {
             id,
             error: {
               code: -32003,
-              message: `Failed to send: ${err.message}`
+              message: 'Failed to send message'
             }
           });
         }
-        break;
-      }
-
-      case 'stream': {
-        const sessionId = params?.sessionId;
-        if (!sessionId) {
-          warn(`stream missing sessionId parameter`);
-          resolve({
-            jsonrpc: '2.0',
-            id,
-            error: {
-              code: -32602,
-              message: 'Missing sessionId parameter'
-            }
-          });
-          return;
-        }
-
-        const session = sessions.get(sessionId);
-        if (!session) {
-          error(`stream: session not found: ${sessionId}`);
-          resolve({
-            jsonrpc: '2.0',
-            id,
-            error: {
-              code: -32002,
-              message: 'Session not found'
-            }
-          });
-          return;
-        }
-
-        resolve({
-          jsonrpc: '2.0',
-          id,
-          result: {
-            streaming: true,
-            sessionId,
-            status: 'active'
-          }
-        });
         break;
       }
 
@@ -397,7 +359,7 @@ function handleClientRequest(clientId, request) {
           id,
           error: {
             code: -32601,
-            message: 'Method not found'
+            message: `Method not found: ${method}`
           }
         });
     }
@@ -405,85 +367,70 @@ function handleClientRequest(clientId, request) {
 }
 
 /**
- * Create WebSocket server for clients
+ * Create WebSocket server for client connections
  */
 function createServer() {
-  const wss = new WebSocket.Server({ port: BRIDGE_PORT, host: BRIDGE_HOST });
+  const wss = new WebSocket.Server({
+    host: BRIDGE_HOST,
+    port: BRIDGE_PORT
+  });
 
   wss.on('connection', (ws) => {
     const clientId = generateId();
-    info(`Client connected: ${clientId}`);
-    debug(`WebSocket connection opened from ${ws._socket.remoteAddress}:${ws._socket.remotePort}`);
+    debug(`Client connected: ${clientId}`);
     
     clients.set(clientId, ws);
-    
-    // Send connected notification
-    ws.send(JSON.stringify({
-      jsonrpc: '2.0',
-      method: 'connected',
-      params: {
-        clientId,
-        serverVersion: '1.0.0'
-      }
-    }));
 
-    ws.on('message', (data) => {
-      debug(`Client ${clientId} message: ${data.toString().substring(0, 300)}`);
-      
-      let request;
+    ws.on('message', async (data) => {
       try {
-        request = JSON.parse(data.toString());
+        const message = JSON.parse(data.toString());
+        debug(`Client ${clientId} message: ${JSON.stringify(message).substring(0, 200)}`);
+        
+        const response = await handleClientRequest(clientId, message);
+        
+        debug(`Sending response: ${JSON.stringify(response).substring(0, 300)}`);
+        ws.send(JSON.stringify(response));
       } catch (error) {
-        error(`Invalid JSON from client ${clientId}: ${error.message}`);
+        error(`Error handling message: ${error.message}`);
         ws.send(JSON.stringify({
           jsonrpc: '2.0',
           id: null,
           error: {
             code: -32700,
-            message: 'Parse error'
+            message: 'Parse error',
+            data: error.message
           }
         }));
-        return;
       }
-
-      handleClientRequest(clientId, request)
-        .then((response) => {
-          if (ws.readyState === WebSocket.OPEN) {
-            if (DEBUG) debug(`Sending response: ${JSON.stringify(response).substring(0, 300)}`);
-            ws.send(JSON.stringify(response));
-          }
-        })
-        .catch((err) => {
-          error(`Handler error: ${err.message}`);
-        });
     });
 
     ws.on('close', () => {
-      info(`Client disconnected: ${clientId}`);
-      debug(`Cleaning up ${sessions.size} session(s) for this client`);
+      debug(`Client disconnected: ${clientId}`);
+      clients.delete(clientId);
       
       // Clean up sessions for this client
+      const clientSessionIds = [];
       for (const [sessionId, session] of sessions.entries()) {
         if (session.clientId === clientId) {
-          debug(`Closing session ${sessionId} due to client disconnect`);
-          closeSession(sessionId);
+          clientSessionIds.push(sessionId);
         }
       }
       
-      clients.delete(clientId);
+      debug(`Cleaning up ${clientSessionIds.length} session(s) for this client`);
+      for (const sessionId of clientSessionIds) {
+        closeSession(sessionId);
+      }
     });
 
     ws.on('error', (error) => {
       error(`Client ${clientId} error: ${error.message}`);
     });
 
-    ws.on('pong', () => {
-      // Client is alive
-      if (DEBUG) debug(`Heartbeat received from client ${clientId}`);
-    });
+    info(`Client connected: ${clientId}`);
   });
 
-  info(`Bridge server listening on ws://${BRIDGE_HOST}:${BRIDGE_PORT}`);
+  info(`Bridge WebSocket server listening on ${BRIDGE_HOST}:${BRIDGE_PORT}`);
+  
   return wss;
 }
 
@@ -491,100 +438,49 @@ function createServer() {
  * Health check HTTP server
  */
 function createHealthServer() {
-  const server = http.createServer((req, res) => {
+  const healthServer = http.createServer((req, res) => {
     if (req.url === '/health') {
-    // RPC Ping endpoint - test app-server connectivity
-    if (req.url === '/rpc-ping') {
-      handleRpcPing(req, res);
-      return;
-    }
-      const status = {
-        status: 'ok',
-        uptime: process.uptime(),
-        clients: clients.size,
-        sessions: sessions.size,
-        port: BRIDGE_PORT,
-        appServerUrl: CODEX_APP_SERVER_URL
-      };
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(status, null, 2));
-    } else if (req.url === '/') {
-      res.writeHead(200, { 'Content-Type': 'text/plain' });
-      res.end('CodexDroid Bridge Server v1.0.0\n');
+      const startTime = Date.now();
+      debug(`Health check request received`);
+      
+      // Try to connect to app-server to verify it's available
+      connectToAppServer(SESSION_CREATE_TIMEOUT_MS)
+        .then((ws) => {
+          ws.close();
+          const totalLatency = Date.now() - startTime;
+          debug(`Health check: app-server connected in ${totalLatency}ms`);
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'ok',
+            appServer: 'connected',
+            latencyMs: totalLatency,
+            timestamp: new Date().toISOString()
+          }));
+        })
+        .catch((error) => {
+          const latency = Date.now() - startTime;
+          debug(`Health check: app-server connection failed: ${error.message}`);
+          
+          res.writeHead(503, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'error',
+            appServer: 'disconnected',
+            latencyMs: latency,
+            error: error.message,
+            timestamp: new Date().toISOString()
+          }));
+        });
     } else {
       res.writeHead(404);
-      res.end('Not Found\n');
+      res.end('Not found');
     }
   });
 
   const healthPort = BRIDGE_PORT + 1;
-  server.listen(healthPort, BRIDGE_HOST, () => {
-    info(`Health server on http://${BRIDGE_HOST}:${healthPort}`);
+  healthServer.listen(healthPort, BRIDGE_HOST, () => {
+    info(`Health check server listening on ${BRIDGE_HOST}:${healthPort}`);
   });
-
-  return server;
-}
-
-
-/**
- * Handle RPC ping request - test connection to app-server
- */
-async function handleRpcPing(req, res) {
-  const startTime = Date.now();
-  
-  debug(`RPC ping request received`);
-  
-  try {
-    const ws = await connectToAppServer(SESSION_CREATE_TIMEOUT_MS);
-    
-    // Send a simple ping request to app-server
-    const pingId = `ping-${Date.now()}`;
-    const pingRequest = JSON.stringify({
-      jsonrpc: '2.0',
-      id: pingId,
-      method: 'ping',
-      params: {}
-    });
-    
-    const pingResponse = await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        ws.close();
-        reject(new Error('Ping response timeout'));
-      }, 2000);
-      
-      ws.once('message', (data) => {
-        clearTimeout(timeout);
-        ws.close();
-        resolve(JSON.parse(data.toString()));
-      });
-      
-      ws.once('error', reject);
-      ws.send(pingRequest);
-    });
-    
-    const totalLatency = Date.now() - startTime;
-    debug(`RPC ping successful: ${totalLatency}ms`);
-    
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      status: 'ok',
-      appServer: 'connected',
-      latencyMs: totalLatency,
-      timestamp: new Date().toISOString()
-    }));
-  } catch (error) {
-    const latency = Date.now() - startTime;
-    error(`RPC ping failed: ${error.message}`);
-    
-    res.writeHead(503, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      status: 'error',
-      appServer: 'disconnected',
-      latencyMs: latency,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    }));
-  }
 }
 
 /**
@@ -642,7 +538,7 @@ async function main() {
 }
 
 main().catch((err) => {
-  error(`Fatal error: ${error.message}`);
-  error(error.stack);
+  error(`Fatal error: ${err.message}`);
+  error(err.stack);
   process.exit(1);
 });

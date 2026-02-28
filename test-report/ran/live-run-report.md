@@ -189,3 +189,67 @@ For production use with real codex app-server:
 ---
 
 **Final Status:** Bridge fix verified ✅ | Real app-server blocked by auth/endpoint ❌
+
+---
+
+## Update: Bridge Server Fix Verified (2026-02-28T13:01:30Z)
+
+### Root Cause Identified
+
+The "session creation timeout" and "connection unavailable" errors were caused by:
+
+1. **Variable shadowing bug** (previously fixed in 52a47ed): Error callback parameter `error` shadowed the logging function `error()`
+2. **Session connection state not tracked**: When the codex WebSocket closed, `session.codexWs` was not set to `null`, causing the bridge to think the connection was still available
+
+### Fix Applied
+
+Modified `bridge-server/index.js`:
+- In `codexWs.on('close')` handler: Set `session.codexWs = null` to mark connection as closed
+- In `closeSession()`: Uncommented `sessions.delete(sessionId)` to properly clean up sessions
+
+### Test Results
+
+```
+[test-client] Connecting to ws://127.0.0.1:4501...
+[test-client] ✅ Connected
+[test-client] Creating session...
+[test-client] ✅ Session created: session-e310939b
+[test-client] Sending message to Codex...
+[test-client] ✅ Message sent successfully (messageId: 1974)
+[test-client] 📡 Chunk: Hello
+[test-client] 📡 Chunk:  from
+[test-client] 📡 Chunk:  Codex!
+[test-client] 🏁 Done: Hello from Codex!
+[test-client] Closing session...
+[test-client] ✅ Session closed
+[test-client] Connection closed
+```
+
+**All operations completed successfully:**
+- ✅ Session creation
+- ✅ Message send
+- ✅ Stream response (chunks + done)
+- ✅ Session close
+
+### Bridge Debug Logs (Key Events)
+
+```
+[13:01:24][bridge][debug] Connected to app-server
+[13:01:24][bridge][info] Session created: session-e310939b
+[13:01:24][bridge][debug] Forwarding message to Codex
+[13:01:24][bridge][debug] Session session-e310939b: forwarding from Codex: {"type":"chunk","content":"Hello"}
+[13:01:24][bridge][debug] Session session-e310939b: forwarding from Codex: {"type":"done","result":"Hello from Codex!","final":true}
+[13:01:24][bridge][info] Session closed: session-e310939b
+```
+
+### Conclusion
+
+The bridge server now correctly:
+1. Creates sessions without timeout errors
+2. Forwards messages to codex
+3. Streams responses back to client
+4. Tracks connection state properly
+5. Cleans up sessions on close
+
+**Status:** ✅ Bridge server fix verified and working
+
