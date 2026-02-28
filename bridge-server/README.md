@@ -402,23 +402,263 @@ curl http://127.0.0.1:4502/health
 
 ### Session Creation Timeout
 
-If you see `Failed to create session: Connection timeout`, check:
+**Symptom:** Client receives error: `Failed to create session: Connection timeout to ws://127.0.0.1:4500`
 
-1. **Codex app-server is running**: Ensure `codex app-server` is listening on the configured URL
-2. **Correct URL**: Verify `CODEX_APP_SERVER_URL` matches where app-server is listening
-3. **Network connectivity**: Check firewall/port bindings
-4. **Enable debug logs**: Run with `LOG_LEVEL=debug` to see detailed connection attempts
+**Quick Fixes:**
+
+1. **Check if Codex is installed and logged in:**
+   ```bash
+   # Verify codex CLI is available
+   codex --version
+   
+   # Ensure you're authenticated
+   codex auth status
+   
+   # If not logged in, authenticate first
+   codex auth login
+   ```
+
+2. **Test app-server manually:**
+   ```bash
+   # Start app-server in one terminal
+   codex app-server --listen ws://127.0.0.1:4500
+   
+   # In another terminal, verify it's running
+   curl http://127.0.0.1:4502/rpc-ping
+   ```
+
+3. **Enable debug logging on bridge server:**
+   ```bash
+   # Run bridge with verbose output
+   LOG_LEVEL=debug npm start
+   
+   # Or use the shortcut
+   BRIDGE_DEBUG=1 npm start
+   ```
+   
+   **What to look for in logs:**
+   ```
+   [10:15:35][bridge][debug] Connecting to app-server at ws://127.0.0.1:4500...
+   [10:15:35][bridge][debug] Connected to app-server
+   [10:15:35][bridge][info] Session created: session-a1b2c3d4
+   ```
+   
+   **If connection fails, you'll see:**
+   ```
+   [10:15:35][bridge][error] Failed to connect to app-server: ECONNREFUSED
+   [10:15:35][bridge][error] session.create failed: Connection timeout after 5000ms
+   ```
+
+4. **Use the /rpc-ping endpoint:**
+   ```bash
+   # Quick connectivity test
+   curl http://127.0.0.1:4502/rpc-ping
+   
+   # Success response
+   {"status":"ok","appServer":"connected","latencyMs":45}
+   
+   # Failure response
+   {"status":"error","appServer":"disconnected","error":"Connection timeout..."}
+   ```
+
+5. **Check configuration:**
+   ```bash
+   # Verify bridge is pointing to correct app-server URL
+   echo $CODEX_APP_SERVER_URL
+   # Should be: ws://127.0.0.1:4500 (or your custom URL)
+   
+   # If app-server runs on different port, update:
+   CODEX_APP_SERVER_URL=ws://127.0.0.1:9999 npm start
+   ```
+
+6. **Adjust timeout if needed:**
+   ```bash
+   # Increase session creation timeout (default: 5000ms)
+   SESSION_CREATE_TIMEOUT_MS=10000 npm start
+   ```
+
+**Common Causes:**
+- ❌ Codex CLI not installed → `npm install -g @openai/codex`
+- ❌ Not authenticated → `codex auth login`
+- ❌ app-server not running → Start with `codex app-server --listen ws://127.0.0.1:4500`
+- ❌ Wrong port in `CODEX_APP_SERVER_URL` → Check and update
+- ❌ Firewall blocking localhost → Allow connections on 4500/4501/4502
 
 ### No Logs Appearing
 
-- Default log level is `info`. Set `LOG_LEVEL=debug` for verbose output
-- Check stderr for error-level logs
+**Problem:** Bridge server starts but no logs appear, or only errors show.
 
-### Client Disconnects
+**Solution:**
+```bash
+# Default log level is 'info'. Enable debug mode:
+LOG_LEVEL=debug npm start
 
-- Enable debug logging to see connection lifecycle
-- Check for network issues or client-side timeouts
-- Verify WebSocket URL and port are correct
+# Or use the shortcut:
+BRIDGE_DEBUG=1 npm start
+
+# Verify log level in startup output:
+# [10:15:32][bridge][info] Log level: debug
+```
+
+**Log Levels:**
+| Level | Shows |
+|-------|-------|
+| `error` | Only errors |
+| `warn` | Warnings + errors |
+| `info` (default) | Startup, connections, sessions |
+| `debug` | All JSON-RPC messages, connection details |
+
+### Client Disconnects Unexpectedly
+
+**Symptom:** Client connects but disconnects shortly after, or during session creation.
+
+**Debug Steps:**
+
+1. **Enable debug logging:**
+   ```bash
+   LOG_LEVEL=debug npm start
+   ```
+
+2. **Check for these log patterns:**
+   ```
+   [10:15:35][bridge][info] Client connected: msg-1709117735-abc123
+   [10:15:35][bridge][debug] WebSocket connection opened from 127.0.0.1:52341
+   [10:15:40][bridge][info] Client disconnected: msg-1709117735-abc123
+   [10:15:40][bridge][debug] Reason: socket hang up
+   ```
+
+3. **Common causes:**
+   - Client-side timeout (increase client timeout)
+   - Network instability (check localhost connectivity)
+   - Invalid WebSocket URL (verify `ws://127.0.0.1:4501`)
+   - Bridge server crashed (check for error logs before disconnect)
+
+4. **Test with the included test client:**
+   ```bash
+   # Start bridge server
+   npm start
+   
+   # In another terminal, run test client
+   node test/test-client.js
+   ```
+
+### /rpc-ping Returns Error
+
+**Symptom:** `curl http://127.0.0.1:4502/rpc-ping` returns error status.
+
+**Diagnosis:**
+
+```bash
+# Test ping endpoint
+curl -v http://127.0.0.1:4502/rpc-ping
+
+# If connection refused:
+# - Bridge server not running → npm start
+# - Wrong port → Check BRIDGE_PORT (health port = BRIDGE_PORT + 1)
+
+# If returns {"status":"error","appServer":"disconnected"}:
+# - app-server not running → codex app-server --listen ws://127.0.0.1:4500
+# - Wrong URL → Check CODEX_APP_SERVER_URL env var
+# - Firewall/port conflict → Verify port 4500 is accessible
+```
+
+**Expected Responses:**
+
+✅ **Success:**
+```json
+{
+  "status": "ok",
+  "appServer": "connected",
+  "latencyMs": 45,
+  "timestamp": "2026-02-28T10:30:00.000Z"
+}
+```
+
+❌ **App-server unavailable:**
+```json
+{
+  "status": "error",
+  "appServer": "disconnected",
+  "latencyMs": 5023,
+  "error": "Connection timeout to ws://127.0.0.1:4500 after 5000ms",
+  "timestamp": "2026-02-28T10:30:05.000Z"
+}
+```
+
+### Codex Authentication Issues
+
+**Symptom:** app-server starts but rejects connections or sessions fail.
+
+**Fix:**
+
+```bash
+# Check authentication status
+codex auth status
+
+# If not logged in or expired:
+codex auth login
+
+# Verify API key is set (if using key-based auth)
+echo $OPENAI_API_KEY
+
+# Restart app-server after auth:
+codex app-server --listen ws://127.0.0.1:4500
+```
+
+### Port Conflicts
+
+**Symptom:** Bridge server fails to start with `EADDRINUSE`.
+
+**Solution:**
+
+```bash
+# Check what's using the port
+lsof -i :4501  # Bridge WS port
+lsof -i :4500  # App-server port
+lsof -i :4502  # Health HTTP port
+
+# Kill conflicting process (if safe)
+kill -9 <PID>
+
+# Or use different ports:
+BRIDGE_PORT=4503 npm start
+# Health server will be on 4504 (BRIDGE_PORT + 1)
+```
+
+### Quick Diagnostic Script
+
+Save as `diagnose.sh`:
+
+```bash
+#!/bin/bash
+echo "=== CodexDroid Bridge Diagnostics ==="
+echo ""
+echo "1. Codex CLI version:"
+codex --version 2>/dev/null || echo "   ❌ Codex not installed"
+echo ""
+echo "2. Auth status:"
+codex auth status 2>/dev/null || echo "   ❌ Not authenticated"
+echo ""
+echo "3. App-server port (4500):"
+lsof -i :4500 2>/dev/null || echo "   ❌ Nothing listening"
+echo ""
+echo "4. Bridge server port (4501):"
+lsof -i :4501 2>/dev/null || echo "   ❌ Nothing listening"
+echo ""
+echo "5. Health endpoint test:"
+curl -s http://127.0.0.1:4502/health 2>/dev/null || echo "   ❌ Health endpoint unreachable"
+echo ""
+echo "6. RPC ping test:"
+curl -s http://127.0.0.1:4502/rpc-ping 2>/dev/null || echo "   ❌ RPC ping failed"
+echo ""
+echo "7. Environment:"
+echo "   CODEX_APP_SERVER_URL=$CODEX_APP_SERVER_URL"
+echo "   LOG_LEVEL=$LOG_LEVEL"
+echo "   BRIDGE_DEBUG=$BRIDGE_DEBUG"
+echo "   SESSION_CREATE_TIMEOUT_MS=$SESSION_CREATE_TIMEOUT_MS"
+```
+
+Run with: `bash diagnose.sh`
 
 ## Reconnect Handling
 
