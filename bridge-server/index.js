@@ -5,6 +5,7 @@ const crypto = require('crypto');
 
 // Configuration from environment
 const BRIDGE_PORT = parseInt(process.env.BRIDGE_PORT, 10) || 4501;
+const BRIDGE_HOST = process.env.BRIDGE_HOST || '0.0.0.0';
 const CODEX_APP_SERVER_URL = process.env.CODEX_APP_SERVER_URL || 'ws://127.0.0.1:4500';
 const START_APP_SERVER = process.env.START_APP_SERVER !== 'false';
 
@@ -367,7 +368,7 @@ function handleClientRequest(clientId, request) {
  * Create WebSocket server for clients
  */
 function createServer() {
-  const wss = new WebSocket.Server({ port: BRIDGE_PORT });
+  const wss = new WebSocket.Server({ port: BRIDGE_PORT, host: BRIDGE_HOST });
 
   wss.on('connection', (ws, req) => {
     const clientId = generateId();

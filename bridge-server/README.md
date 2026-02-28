@@ -37,6 +37,7 @@ npm install
 
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
+| `BRIDGE_HOST` | `0.0.0.0` | Host/interface to bind for client connections |
 | `BRIDGE_PORT` | `4501` | WebSocket port for client connections |
 | `CODEX_APP_SERVER_URL` | `ws://127.0.0.1:4500` | Codex app-server WebSocket URL |
 | `START_APP_SERVER` | `true` | Whether to spawn `codex app-server` process |
@@ -46,14 +47,14 @@ npm install
 ### Start the Server
 
 ```bash
-# Default (spawns codex app-server automatically)
+# Default (bind all interfaces, spawns codex app-server automatically)
 npm start
 
 # Connect to external app-server
 START_APP_SERVER=false CODEX_APP_SERVER_URL=ws://localhost:4500 npm start
 
-# Custom port
-BRIDGE_PORT=4502 npm start
+# Bind specific interface + custom port
+BRIDGE_HOST=0.0.0.0 BRIDGE_PORT=4502 npm start
 ```
 
 ### Client Example
