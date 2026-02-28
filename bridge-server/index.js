@@ -429,7 +429,7 @@ function createServer() {
     });
   });
 
-  console.log(`[bridge] Bridge server listening on ws://127.0.0.1:${BRIDGE_PORT}`);
+  console.log(`[bridge] Bridge server listening on ws://${BRIDGE_HOST}:${BRIDGE_PORT}`);
   return wss;
 }
 
@@ -459,8 +459,8 @@ function createHealthServer() {
   });
 
   const healthPort = BRIDGE_PORT + 1;
-  server.listen(healthPort, '127.0.0.1', () => {
-    console.log(`[bridge] Health server on http://127.0.0.1:${healthPort}`);
+  server.listen(healthPort, BRIDGE_HOST, () => {
+    console.log(`[bridge] Health server on http://${BRIDGE_HOST}:${healthPort}`);
   });
 
   return server;
