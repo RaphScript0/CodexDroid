@@ -149,7 +149,7 @@ function connectToAppServer(timeoutMs = 5000) {
       resolve(ws);
     });
 
-    ws.on('error', (error) => {
+    ws.on('error', (err) => {
       clearTimeout(timeout);
       reject(error);
     });
@@ -186,14 +186,14 @@ async function createSession(clientId) {
       }
     });
 
-    codexWs.on('error', (error) => {
+    codexWs.on('error', (err) => {
       error(`Session ${sessionId} error: ${err.message}`);
     });
 
     return sessionId;
-  } catch (error) {
+  } catch (err) {
     error(`Failed to create session: ${err.message}`);
-    throw error;
+    throw err;
   }
 }
 
@@ -449,7 +449,7 @@ function createServer() {
       }
     });
 
-    ws.on('error', (error) => {
+    ws.on('error', (err) => {
       error(`Client ${clientId} error: ${err.message}`);
     });
 
@@ -466,7 +466,9 @@ function createServer() {
  */
 function createHealthServer() {
   const healthServer = http.createServer((req, res) => {
-    if (req.url === '/health') {
+    if (req.url === '/rpc-ping') {
+      handleRpcPing(req, res);
+    } else if (req.url === '/health') {
       const startTime = Date.now();
       debug(`Health check request received`);
       
@@ -498,8 +500,6 @@ function createHealthServer() {
             timestamp: new Date().toISOString()
           }));
         });
-    } else if (req.url === '/rpc-ping') {
-      handleRpcPing(req, res);
     } else {
       res.writeHead(404);
       res.end('Not found');
@@ -578,7 +578,7 @@ function handleRpcPing(req, res) {
         }
       });
       
-      ws.on('error', (error) => {
+      ws.on('error', (err) => {
         if (responded) return;
         clearTimeout(timeout);
         responded = true;
