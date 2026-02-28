@@ -7,6 +7,7 @@ Lightweight WebSocket proxy server that wraps `codex app-server` and exposes it 
 - **Session Management**: Create, manage, and close sessions with Codex app-server
 - **Real-time Streaming**: Stream Codex responses back to clients instantly
 - **JSON-RPC 2.0**: Clean protocol for all operations
+- **Debug Logging**: Configurable verbose logging for troubleshooting
 - **Reconnect Support**: Automatic session cleanup and reconnection handling
 - **Graceful Shutdown**: Clean connection termination on server shutdown
 - **Health Monitoring**: HTTP health endpoint for status checks
@@ -41,6 +42,8 @@ npm install
 | `BRIDGE_PORT` | `4501` | WebSocket port for client connections |
 | `CODEX_APP_SERVER_URL` | `ws://127.0.0.1:4500` | Codex app-server WebSocket URL |
 | `START_APP_SERVER` | `true` | Whether to spawn `codex app-server` process |
+| `LOG_LEVEL` | `info` | Logging level: `debug`, `info`, `warn`, `error` |
+| `BRIDGE_DEBUG` | unset | Set to `1` to enable debug logging (shortcut for `LOG_LEVEL=debug`) |
 
 ## Usage
 
@@ -50,11 +53,42 @@ npm install
 # Default (bind all interfaces, spawns codex app-server automatically)
 npm start
 
+# Enable debug logging
+LOG_LEVEL=debug npm start
+
+# Or use the shortcut
+BRIDGE_DEBUG=1 npm start
+
 # Connect to external app-server
 START_APP_SERVER=false CODEX_APP_SERVER_URL=ws://localhost:4500 npm start
 
 # Bind specific interface + custom port
 BRIDGE_HOST=0.0.0.0 BRIDGE_PORT=4502 npm start
+```
+
+### Debug Logging
+
+Set `LOG_LEVEL=debug` or `BRIDGE_DEBUG=1` to enable verbose logging:
+
+```bash
+LOG_LEVEL=debug npm start
+```
+
+**Sample debug output:**
+```
+[10:15:32][bridge][info] CodexDroid Bridge Server v1.0.0 starting
+[10:15:32][bridge][info] Configuration: PORT=4501, HOST=0.0.0.0, APP_SERVER=ws://127.0.0.1:4500, START_APP_SERVER=true
+[10:15:32][bridge][info] Log level: debug (set LOG_LEVEL=debug for verbose logging)
+[10:15:32][bridge][info] Starting codex app-server...
+[10:15:34][bridge][info] Bridge server listening on ws://0.0.0.0:4501
+[10:15:35][bridge][info] Client connected: msg-1709117735-abc123
+[10:15:35][bridge][debug] WebSocket connection opened from 127.0.0.1:52341
+[10:15:35][bridge][debug] Client msg-1709117735-abc123 request: session.create (id: 1)
+[10:15:35][bridge][debug] Creating session for client msg-1709117735-abc123
+[10:15:35][bridge][debug] Connecting to app-server at ws://127.0.0.1:4500...
+[10:15:35][bridge][debug] Connected to app-server
+[10:15:35][bridge][info] Session created: session-a1b2c3d4 for client msg-1709117735-abc123
+[10:15:35][bridge][debug] session.create succeeded: session-a1b2c3d4
 ```
 
 ### Client Example
@@ -138,6 +172,19 @@ Create a new session with Codex app-server.
   "id": 1,
   "result": {
     "sessionId": "session-abc123"
+  }
+}
+```
+
+**Error Response:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": {
+    "code": -32001,
+    "message": "Failed to create session: Connection timeout to ws://127.0.0.1:4500",
+    "details": "Error: Connection timeout..."
   }
 }
 ```
@@ -307,9 +354,31 @@ curl http://127.0.0.1:4502/health
 | -32700 | Parse error | Invalid JSON received |
 | -32601 | Method not found | Unknown method requested |
 | -32602 | Invalid params | Missing or invalid parameters |
-| -32001 | Session creation failed | Failed to create session |
+| -32001 | Session creation failed | Failed to create session (app-server unavailable, timeout, etc.) |
 | -32002 | Session not found | Invalid session ID |
 | -32003 | Connection unavailable | Session connection lost |
+
+## Troubleshooting
+
+### Session Creation Timeout
+
+If you see `Failed to create session: Connection timeout`, check:
+
+1. **Codex app-server is running**: Ensure `codex app-server` is listening on the configured URL
+2. **Correct URL**: Verify `CODEX_APP_SERVER_URL` matches where app-server is listening
+3. **Network connectivity**: Check firewall/port bindings
+4. **Enable debug logs**: Run with `LOG_LEVEL=debug` to see detailed connection attempts
+
+### No Logs Appearing
+
+- Default log level is `info`. Set `LOG_LEVEL=debug` for verbose output
+- Check stderr for error-level logs
+
+### Client Disconnects
+
+- Enable debug logging to see connection lifecycle
+- Check for network issues or client-side timeouts
+- Verify WebSocket URL and port are correct
 
 ## Reconnect Handling
 
@@ -339,6 +408,22 @@ npm run dev
 
 # Custom environment
 BRIDGE_PORT=4502 START_APP_SERVER=false npm start
+
+# Full debug mode
+LOG_LEVEL=debug BRIDGE_DEBUG=1 npm start
+```
+
+## Testing
+
+```bash
+# Start mock Codex server
+node test/mock-codex.js
+
+# Start bridge server with debug logging
+LOG_LEVEL=debug BRIDGE_PORT=4501 START_APP_SERVER=false node index.js
+
+# Run test client
+node test/test-client.js
 ```
 
 ## License
