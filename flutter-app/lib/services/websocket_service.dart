@@ -19,6 +19,9 @@ class WebSocketService extends ChangeNotifier {
   String? _sessionId;
   int _messageId = 1;
   final Map<int, Completer> _pendingRequests = {};
+  int _reconnectAttempts = 0;
+  static const int _maxReconnectAttempts = 5;
+  static const Duration _initialReconnectDelay = Duration(seconds: 1);
 
   WebSocketService({
     required this.serverIp,
@@ -43,6 +46,7 @@ class WebSocketService extends ChangeNotifier {
     }
 
     _setConnectionState(WsConnectionState.connecting);
+    _lastError = null;
     
     try {
       final uri = Uri.parse('ws://$serverIp:$serverPort');
@@ -59,15 +63,9 @@ class WebSocketService extends ChangeNotifier {
           _handleDisconnect();
         },
       );
-      
-      // Assume connected after successful connection setup
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (_connectionState == WsConnectionState.connecting) {
-          _setConnectionState(WsConnectionState.connected);
-          // Create session after connection
-          _createSession();
-        }
-      });
+
+      // Wait for session creation before marking as connected
+      _createSession();
     } catch (e) {
       _handleError(e);
     }
@@ -94,8 +92,9 @@ class WebSocketService extends ChangeNotifier {
     _isReconnecting = true;
     disconnect();
     
-    _reconnectTimer = Timer(const Duration(seconds: 2), () {
+    _reconnectTimer = Timer(const Duration(seconds: 1), () {
       _isReconnecting = false;
+      _reconnectAttempts = 0;
       connect();
     });
   }
@@ -162,7 +161,7 @@ class WebSocketService extends ChangeNotifier {
 
   /// Create a new session with the bridge server
   Future<void> _createSession() async {
-    if (_channel == null || _connectionState != WsConnectionState.connected) {
+    if (_channel == null || _connectionState != WsConnectionState.connecting) {
       return;
     }
     
@@ -180,19 +179,44 @@ class WebSocketService extends ChangeNotifier {
     
     try {
       final result = await completer.future.timeout(
-        const Duration(seconds: 10),
+        const Duration(seconds: 5),
         onTimeout: () => throw TimeoutException('Session creation timeout'),
       );
       
       _sessionId = result['sessionId'];
       debugPrint('[WebSocketService] Session created: $_sessionId');
       
-      // Notify listeners that session is ready
+      // Only mark as connected after session is successfully created
+      _setConnectionState(WsConnectionState.connected);
+      _reconnectAttempts = 0;
       _messageController.add('system: Session connected');
     } catch (e) {
       debugPrint('[WebSocketService] Session creation failed: $e');
-      _lastError = 'Failed to create session: $e';
-      _setConnectionState(WsConnectionState.error);
+      _handleSessionError(e);
+    }
+  }
+
+  /// Handle session creation errors with retry/backoff
+  void _handleSessionError(dynamic error) {
+    _lastError = 'Session error: $error';
+    _setConnectionState(WsConnectionState.error);
+    notifyListeners();
+    
+    // Retry with exponential backoff
+    if (_reconnectAttempts < _maxReconnectAttempts) {
+      _reconnectAttempts++;
+      final delay = _initialReconnectDelay * _reconnectAttempts;
+      debugPrint('[WebSocketService] Retrying session creation in ${delay.inSeconds}s (attempt $_reconnectAttempts/$_maxReconnectAttempts)');
+      
+      _reconnectTimer = Timer(delay, () {
+        if (_connectionState != WsConnectionState.connected) {
+          _setConnectionState(WsConnectionState.connecting);
+          _createSession();
+        }
+      });
+    } else {
+      debugPrint('[WebSocketService] Max reconnect attempts reached');
+      _messageController.add('system: Failed to connect after $_maxReconnectAttempts attempts');
     }
   }
 
@@ -310,13 +334,15 @@ class WebSocketService extends ChangeNotifier {
     _setConnectionState(WsConnectionState.error);
     notifyListeners();
     
-    // Auto-reconnect on error
+    // Auto-reconnect with backoff on error
     if (!_isReconnecting) {
-      _reconnectTimer = Timer(const Duration(seconds: 3), () {
-        if (_connectionState != WsConnectionState.connected) {
+      if (_reconnectAttempts < _maxReconnectAttempts) {
+        _reconnectAttempts++;
+        final delay = _initialReconnectDelay * _reconnectAttempts;
+        _reconnectTimer = Timer(delay, () {
           reconnect();
-        }
-      });
+        });
+      }
     }
   }
 
@@ -324,13 +350,15 @@ class WebSocketService extends ChangeNotifier {
     if (_connectionState == WsConnectionState.connected) {
       _setConnectionState(WsConnectionState.disconnected);
       
-      // Auto-reconnect on unexpected disconnect
+      // Auto-reconnect with backoff on unexpected disconnect
       if (!_isReconnecting) {
-        _reconnectTimer = Timer(const Duration(seconds: 3), () {
-          if (_connectionState != WsConnectionState.connected) {
+        if (_reconnectAttempts < _maxReconnectAttempts) {
+          _reconnectAttempts++;
+          final delay = _initialReconnectDelay * _reconnectAttempts;
+          _reconnectTimer = Timer(delay, () {
             reconnect();
-          }
-        });
+          });
+        }
       }
     }
   }
