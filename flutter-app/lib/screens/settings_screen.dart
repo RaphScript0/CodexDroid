@@ -218,26 +218,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _getConnectionStateText() {
     switch (widget.websocketService.connectionState) {
-      case ConnectionState.connected:
+      case WsConnectionState.connected:
         return 'Connected ✓';
-      case ConnectionState.connecting:
+      case WsConnectionState.connecting:
         return 'Connecting...';
-      case ConnectionState.error:
+      case WsConnectionState.error:
         return 'Error ✗';
-      case ConnectionState.disconnected:
+      case WsConnectionState.disconnected:
         return 'Disconnected';
     }
   }
 
   Color _getConnectionStateColor() {
     switch (widget.websocketService.connectionState) {
-      case ConnectionState.connected:
+      case WsConnectionState.connected:
         return Colors.green;
-      case ConnectionState.connecting:
+      case WsConnectionState.connecting:
         return Colors.orange;
-      case ConnectionState.error:
+      case WsConnectionState.error:
         return Colors.red;
-      case ConnectionState.disconnected:
+      case WsConnectionState.disconnected:
         return Colors.grey;
     }
   }
