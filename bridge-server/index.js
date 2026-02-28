@@ -82,8 +82,8 @@ function startAppServer() {
       }
     });
 
-    codexAppServerProcess.on('error', (error) => {
-      error(`Failed to spawn app-server: ${err.message}`);
+    codexAppServerProcess.on('error', (err) => {
+      error(`Failed to spawn app-server: ${error.message}`);
       info('Will connect to external app-server instead');
       resolve(); // Continue anyway
     });
@@ -391,11 +391,7 @@ function createServer() {
         debug(`Sending response: ${JSON.stringify(response).substring(0, 300)}`);
         ws.send(JSON.stringify(response));
       } catch (error) {
-<<<<<<< HEAD
-        error(`Error handling message: ${error.message}`);
-=======
         error(`Invalid JSON from client ${clientId}: ${err.message}`);
->>>>>>> 2a224b4 (fix: correct error variable reference in main() catch block)
         ws.send(JSON.stringify({
           jsonrpc: '2.0',
           id: null,
@@ -485,10 +481,8 @@ function createHealthServer() {
   healthServer.listen(healthPort, BRIDGE_HOST, () => {
     info(`Health check server listening on ${BRIDGE_HOST}:${healthPort}`);
   });
-<<<<<<< HEAD
-=======
 
-  return server;
+  return healthServer;
 }
 
 
@@ -551,7 +545,6 @@ async function handleRpcPing(req, res) {
       timestamp: new Date().toISOString()
     }));
   }
->>>>>>> 2a224b4 (fix: correct error variable reference in main() catch block)
 }
 
 /**
