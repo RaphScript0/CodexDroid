@@ -83,7 +83,7 @@ function startAppServer() {
     });
 
     codexAppServerProcess.on('error', (error) => {
-      error(`Failed to spawn app-server: ${err.message}`);
+      error(`Failed to spawn app-server: ${error.message}`);
       info('Will connect to external app-server instead');
       resolve(); // Continue anyway
     });
@@ -391,11 +391,7 @@ function createServer() {
         debug(`Sending response: ${JSON.stringify(response).substring(0, 300)}`);
         ws.send(JSON.stringify(response));
       } catch (error) {
-<<<<<<< HEAD
         error(`Error handling message: ${error.message}`);
-=======
-        error(`Invalid JSON from client ${clientId}: ${err.message}`);
->>>>>>> 2a224b4 (fix: correct error variable reference in main() catch block)
         ws.send(JSON.stringify({
           jsonrpc: '2.0',
           id: null,
@@ -485,73 +481,6 @@ function createHealthServer() {
   healthServer.listen(healthPort, BRIDGE_HOST, () => {
     info(`Health check server listening on ${BRIDGE_HOST}:${healthPort}`);
   });
-<<<<<<< HEAD
-=======
-
-  return server;
-}
-
-
-/**
- * Handle RPC ping request - test connection to app-server
- */
-async function handleRpcPing(req, res) {
-  const startTime = Date.now();
-  
-  debug(`RPC ping request received`);
-  
-  try {
-    const ws = await connectToAppServer(SESSION_CREATE_TIMEOUT_MS);
-    
-    // Send a simple ping request to app-server
-    const pingId = `ping-${Date.now()}`;
-    const pingRequest = JSON.stringify({
-      jsonrpc: '2.0',
-      id: pingId,
-      method: 'ping',
-      params: {}
-    });
-    
-    const pingResponse = await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        ws.close();
-        reject(new Error('Ping response timeout'));
-      }, 2000);
-      
-      ws.once('message', (data) => {
-        clearTimeout(timeout);
-        ws.close();
-        resolve(JSON.parse(data.toString()));
-      });
-      
-      ws.once('error', reject);
-      ws.send(pingRequest);
-    });
-    
-    const totalLatency = Date.now() - startTime;
-    debug(`RPC ping successful: ${totalLatency}ms`);
-    
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      status: 'ok',
-      appServer: 'connected',
-      latencyMs: totalLatency,
-      timestamp: new Date().toISOString()
-    }));
-  } catch (error) {
-    const latency = Date.now() - startTime;
-    error(`RPC ping failed: ${err.message}`);
-    
-    res.writeHead(503, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      status: 'error',
-      appServer: 'disconnected',
-      latencyMs: latency,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    }));
-  }
->>>>>>> 2a224b4 (fix: correct error variable reference in main() catch block)
 }
 
 /**
