@@ -35,9 +35,16 @@ class _ChatScreenState extends State<ChatScreen> {
   void _setupMessageListener() {
     widget.websocketService.messageStream.listen((message) {
       setState(() {
-        if (_isStreaming) {
-          _currentStreamingMessage += message;
-        } else {
+        // Check if this is a streaming message (not user message)
+        if (!message.startsWith('user:') && !message.startsWith('system:')) {
+          if (_isStreaming) {
+            _currentStreamingMessage += message;
+          } else {
+            _currentStreamingMessage = message;
+            _isStreaming = true;
+          }
+        } else if (message.startsWith('system:')) {
+          // System messages don't affect streaming state
           _currentStreamingMessage = message;
         }
       });
@@ -98,7 +105,9 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
 
+    // Add user message to local list
     widget.websocketService.addMessage('user: $text');
+    // Send via WebSocket service (handles JSON-RPC wrapping)
     widget.websocketService.sendMessage(text);
     _controller.clear();
     
@@ -195,13 +204,14 @@ class _ChatScreenState extends State<ChatScreen> {
                   itemBuilder: (context, index) {
                     final message = widget.websocketService.messages[index];
                     final isUser = message.startsWith('user:');
-                    return _buildMessageBubble(message, isUser);
+                    final isSystem = message.startsWith('system:');
+                    return _buildMessageBubble(message, isUser, isSystem);
                   },
                 );
               },
             ),
           ),
-          if (_isStreaming && _currentStreamingMessage.isNotEmpty)
+          if (_isStreaming && _currentStreamingMessage.isNotEmpty && !_currentStreamingMessage.startsWith('system:'))
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
@@ -230,8 +240,26 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildMessageBubble(String message, bool isUser) {
-    final actualMessage = isUser ? message.substring(5) : message;
+  Widget _buildMessageBubble(String message, bool isUser, bool isSystem) {
+    // Extract actual message content
+    String actualMessage;
+    if (isUser) {
+      actualMessage = message.substring(5); // Remove 'user: ' prefix
+    } else if (isSystem) {
+      actualMessage = message.substring(7); // Remove 'system: ' prefix
+    } else {
+      actualMessage = message; // Assistant response
+    }
+    
+    // Determine bubble color
+    Color? bubbleColor;
+    if (isUser) {
+      bubbleColor = Colors.blue[100];
+    } else if (isSystem) {
+      bubbleColor = Colors.orange[100];
+    } else {
+      bubbleColor = Colors.grey[200];
+    }
     
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -242,7 +270,7 @@ class _ChatScreenState extends State<ChatScreen> {
           maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
         decoration: BoxDecoration(
-          color: isUser ? Colors.blue[100] : Colors.grey[200],
+          color: bubbleColor,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Text(

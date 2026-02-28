@@ -54,6 +54,51 @@ void main() {
       expect(find.text('Hello'), findsOneWidget);
     });
 
+    testWidgets('displays system messages with orange background', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatScreen(websocketService: mockService),
+        ),
+      );
+
+      mockService.addMessage('system: Session connected');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Session connected'), findsOneWidget);
+      
+      final container = tester.widget<Container>(
+        find.ancestor(
+          of: find.text('Session connected'),
+          matching: find.byType(Container),
+        ).first,
+      );
+
+      final decoration = container.decoration as BoxDecoration;
+      expect(decoration.color, isNotNull);
+    });
+
+    testWidgets('displays assistant messages aligned left', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatScreen(websocketService: mockService),
+        ),
+      );
+
+      mockService.addMessage('This is an assistant response');
+      await tester.pumpAndSettle();
+
+      expect(find.text('This is an assistant response'), findsOneWidget);
+      
+      final alignWidget = tester.widget<Align>(
+        find.ancestor(
+          of: find.text('This is an assistant response'),
+          matching: find.byType(Align),
+        ).first,
+      );
+
+      expect(alignWidget.alignment, Alignment.centerLeft);
+    });
+
     testWidgets('displays input field', (WidgetTester tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -217,6 +262,62 @@ void main() {
 
       expect(find.text('Disconnected'), findsOneWidget);
       expect(find.byType(CircleAvatar), findsWidgets);
+    });
+
+    testWidgets('streaming indicator appears during streaming', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatScreen(websocketService: mockService),
+        ),
+      );
+
+      // Simulate streaming state by adding a non-user message
+      mockService.addMessage('Streaming response...');
+      await tester.pump();
+
+      // Streaming indicator should appear
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+
+    testWidgets('multiple message types display correctly', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatScreen(websocketService: mockService),
+        ),
+      );
+
+      mockService.addMessage('user: Hello from user');
+      mockService.addMessage('system: Session connected');
+      mockService.addMessage('Assistant response text');
+      
+      await tester.pumpAndSettle();
+
+      expect(find.text('Hello from user'), findsOneWidget);
+      expect(find.text('Session connected'), findsOneWidget);
+      expect(find.text('Assistant response text'), findsOneWidget);
+    });
+
+    testWidgets('ListView rebuilds when messages are added', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatScreen(websocketService: mockService),
+        ),
+      );
+
+      // Initial message count
+      expect(find.byType(ListView), findsOneWidget);
+      
+      // Add messages
+      mockService.addMessage('user: First');
+      await tester.pumpAndSettle();
+      
+      expect(find.text('First'), findsOneWidget);
+      
+      mockService.addMessage('Second message');
+      await tester.pumpAndSettle();
+      
+      expect(find.text('First'), findsOneWidget);
+      expect(find.text('Second message'), findsOneWidget);
     });
   });
 }

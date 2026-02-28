@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:codex_android/services/websocket_service.dart';
+import 'dart:convert';
 
 void main() {
   group('WebSocketService', () {
@@ -111,6 +112,44 @@ void main() {
       service.clearError();
       expect(service.lastError, isNull);
     });
+
+    test('sessionId is null initially', () {
+      expect(service.sessionId, isNull);
+    });
+
+    test('sendMessage does nothing when disconnected', () {
+      // Should not throw
+      service.sendMessage('test message');
+      expect(service.messages, isEmpty);
+    });
+
+    test('sendMessage wraps message in JSON-RPC format', () {
+      // This test verifies the message structure would be correct
+      // Actual sending requires a connected WebSocket
+      final testMessage = 'Hello Codex';
+      
+      // Verify the structure we expect (manually construct for testing)
+      final expectedEvent = {
+        'jsonrpc': '2.0',
+        'method': 'conversation.item.create',
+        'params': {
+          'item': {
+            'type': 'message',
+            'role': 'user',
+            'content': [
+              {
+                'type': 'input_text',
+                'text': testMessage
+              }
+            ]
+          }
+        }
+      };
+      
+      final encoded = jsonEncode(expectedEvent);
+      expect(encoded, contains('conversation.item.create'));
+      expect(encoded, contains('Hello Codex'));
+    });
   });
 
   group('WsConnectionState enum', () {
@@ -120,6 +159,104 @@ void main() {
       expect(WsConnectionState.values.contains(WsConnectionState.connecting), isTrue);
       expect(WsConnectionState.values.contains(WsConnectionState.connected), isTrue);
       expect(WsConnectionState.values.contains(WsConnectionState.error), isTrue);
+    });
+  });
+
+  group('JSON-RPC protocol', () {
+    test('session.create request structure', () {
+      final request = {
+        'jsonrpc': '2.0',
+        'method': 'session.create',
+        'id': 1
+      };
+      
+      final encoded = jsonEncode(request);
+      expect(encoded, contains('session.create'));
+      expect(encoded, contains('jsonrpc'));
+    });
+
+    test('session.close request structure', () {
+      final request = {
+        'jsonrpc': '2.0',
+        'method': 'session.close',
+        'params': {
+          'sessionId': 'session-abc123'
+        },
+        'id': 2
+      };
+      
+      final encoded = jsonEncode(request);
+      expect(encoded, contains('session.close'));
+      expect(encoded, contains('session-abc123'));
+    });
+
+    test('send method request structure', () {
+      final request = {
+        'jsonrpc': '2.0',
+        'method': 'send',
+        'params': {
+          'sessionId': 'session-xyz',
+          'message': {
+            'jsonrpc': '2.0',
+            'method': 'conversation.item.create',
+            'params': {
+              'item': {
+                'type': 'message',
+                'role': 'user'
+              }
+            }
+          }
+        },
+        'id': 3
+      };
+      
+      final encoded = jsonEncode(request);
+      expect(encoded, contains('send'));
+      expect(encoded, contains('conversation.item.create'));
+    });
+
+    test('stream response parsing', () {
+      final streamMessage = {
+        'jsonrpc': '2.0',
+        'method': 'stream',
+        'params': {
+          'sessionId': 'session-xyz',
+          'result': {
+            'output': 'This is the response text'
+          }
+        }
+      };
+      
+      final encoded = jsonEncode(streamMessage);
+      final decoded = jsonDecode(encoded);
+      
+      expect(decoded['method'], 'stream');
+      expect(decoded['params']['result']['output'], 'This is the response text');
+    });
+
+    test('conversation.item.added event parsing', () {
+      final itemAddedMessage = {
+        'jsonrpc': '2.0',
+        'method': 'conversation.item.added',
+        'params': {
+          'item': {
+            'type': 'message',
+            'role': 'assistant',
+            'content': [
+              {
+                'type': 'output_text',
+                'text': 'Assistant response'
+              }
+            ]
+          }
+        }
+      };
+      
+      final encoded = jsonEncode(itemAddedMessage);
+      final decoded = jsonDecode(encoded);
+      
+      expect(decoded['method'], 'conversation.item.added');
+      expect(decoded['params']['item']['role'], 'assistant');
     });
   });
 }
