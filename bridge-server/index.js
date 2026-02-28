@@ -471,6 +471,8 @@ function createHealthServer() {
             timestamp: new Date().toISOString()
           }));
         });
+    } else if (req.url === '/rpc-ping') {
+      handleRpcPing(req, res);
     } else {
       res.writeHead(404);
       res.end('Not found');
@@ -481,6 +483,105 @@ function createHealthServer() {
   healthServer.listen(healthPort, BRIDGE_HOST, () => {
     info(`Health check server listening on ${BRIDGE_HOST}:${healthPort}`);
   });
+}
+
+/**
+
+/**
+ * Handle RPC ping request - test connection to app-server
+ */
+function handleRpcPing(req, res) {
+  const startTime = Date.now();
+  
+  debug(`/rpc-ping: sending JSON-RPC ping to app-server`);
+  
+  connectToAppServer(SESSION_CREATE_TIMEOUT_MS)
+    .then((ws) => {
+      const pingPayload = JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'ping-' + Date.now(),
+        method: 'ping',
+        params: {}
+      });
+      
+      let responded = false;
+      const timeout = setTimeout(() => {
+        if (!responded) {
+          responded = true;
+          ws.close();
+          const latency = Date.now() - startTime;
+          debug(`/rpc-ping: timeout after ${latency}ms`);
+          res.writeHead(504, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'timeout',
+            appServer: 'no-response',
+            latencyMs: latency,
+            timestamp: new Date().toISOString()
+          }));
+        }
+      }, SESSION_CREATE_TIMEOUT_MS);
+      
+      ws.on('message', (data) => {
+        if (responded) return;
+        clearTimeout(timeout);
+        responded = true;
+        ws.close();
+        const latency = Date.now() - startTime;
+        debug(`/rpc-ping: received response in ${latency}ms`);
+        
+        try {
+          const response = JSON.parse(data.toString());
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'ok',
+            appServer: 'responded',
+            latencyMs: latency,
+            rpcResponse: response,
+            timestamp: new Date().toISOString()
+          }));
+        } catch (e) {
+          res.writeHead(502, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            status: 'error',
+            appServer: 'invalid-response',
+            latencyMs: latency,
+            error: 'Failed to parse app-server response',
+            timestamp: new Date().toISOString()
+          }));
+        }
+      });
+      
+      ws.on('error', (error) => {
+        if (responded) return;
+        clearTimeout(timeout);
+        responded = true;
+        const latency = Date.now() - startTime;
+        debug(`/rpc-ping: websocket error: ${error.message}`);
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          status: 'error',
+          appServer: 'connection-error',
+          latencyMs: latency,
+          error: error.message,
+          timestamp: new Date().toISOString()
+        }));
+      });
+      
+      ws.send(pingPayload);
+      debug(`/rpc-ping: sent ping payload`);
+    })
+    .catch((error) => {
+      const latency = Date.now() - startTime;
+      debug(`/rpc-ping: failed to connect: ${error.message}`);
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        status: 'error',
+        appServer: 'disconnected',
+        latencyMs: latency,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      }));
+    });
 }
 
 /**
