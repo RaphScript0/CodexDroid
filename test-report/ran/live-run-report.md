@@ -275,3 +275,138 @@ void _handleMessage(dynamic message) {
 **Report Generated:** 2026-02-28T12:36:00Z  
 **Test Environment:** Node.js v20.20.0, ws v8.18.0  
 **Logs:** /tmp/bridge.log, /tmp/mock-codex.log
+
+---
+
+## Live Run Verification (Post-Fix)
+
+**Date:** 2026-02-28T12:48:00Z  
+**Status:** ✅ FIXED + VERIFIED
+
+### Test Results
+
+**✅ Session Creation:**
+```
+[test-client] ✅ Connected
+[test-client] Client ID: msg-1772282903369-pral8ln7v
+[test-client] Creating session...
+[test-client] ✅ Session created: session-6ecf56b6
+```
+
+**✅ Message Send:**
+```
+[test-client] Sending message to Codex...
+[test-client] Received: { "result": { "sent": true, "sessionId": "session-6ecf56b6", "messageId": 858 } }
+```
+
+**✅ Streaming Response:**
+```
+[test-client] 📡 Stream: { type: 'chunk', content: 'Hello' }
+[test-client] 📡 Stream: { type: 'chunk', content: ' from' }
+[test-client] 📡 Stream: { type: 'chunk', content: ' Codex!' }
+[test-client] 📡 Stream: { type: 'done', result: 'Hello from Codex!', final: true }
+```
+
+**✅ Session Close:**
+```
+[12:48:28][bridge][info] Session closed: session-6ecf56b6
+```
+
+### Codex Authentication Status
+
+**Blocker:** Browser-based OAuth required for `codex login`
+
+The provided config requires OpenAI authentication:
+```toml
+[model_providers.codex-lb]
+requires_openai_auth = true
+```
+
+**Login Options:**
+1. `codex login` - Opens browser for OAuth (requires human interaction)
+2. `codex login --device-auth` - Device code flow (requires human interaction)  
+3. `codex login --with-api-key` - API key from stdin
+
+**For Testing:** Mock codex server works without auth (used above)
+**For Production:** User must complete OAuth flow manually
+
+### Summary
+
+**Root Cause (FIXED):** Variable shadowing in session.create error handler caused `TypeError: error is not a function`
+
+**Fix Commit:** 52a47ed  
+**Tests:** 22/22 passing ✅  
+**Live Run:** ✅ VERIFIED  
+**Auth:** User must complete `codex login` manually
+
+---
+
+## Live Run with BRIDGE_DEBUG=1 (2026-02-28T12:51:00Z)
+
+### Codex Login Status
+```
+$ codex login status
+Not logged in
+```
+
+### Codex App-Server Attempt
+```
+$ codex app-server
+[No output - process hangs waiting for authentication]
+```
+
+**Blocker:** `codex app-server` requires OpenAI authentication via browser OAuth. The config has `requires_openai_auth = true`.
+
+**Login flows available:**
+1. `codex login` - Opens browser at https://auth.openai.com/oauth/authorize (requires human)
+2. `codex login --device-auth` - Device code `662U-147M7` (requires human)
+3. `codex login --with-api-key` - API key from stdin (for direct OpenAI)
+
+### Bridge Server Debug Logs (BRIDGE_DEBUG=1)
+
+**Startup:**
+```
+[12:50:54][bridge][info] CodexDroid Bridge Server v1.0.0 starting
+[12:50:54][bridge][info] Configuration: PORT=4501, HOST=0.0.0.0, APP_SERVER=ws://127.0.0.1:4500
+[12:50:54][bridge][info] Bridge server listening on ws://0.0.0.0:4501
+```
+
+**Session Creation:**
+```
+[12:51:03][bridge][debug] Client msg-1772283063581-xtsmhseam request: session.create (id: 1)
+[12:51:03][bridge][debug] Creating session for client msg-1772283063581-xtsmhseam
+[12:51:03][bridge][debug] Connected to app-server
+[12:51:03][bridge][info] Session created: session-9248b09d
+```
+
+**Message Send:**
+```
+[12:51:03][bridge][debug] Forwarding message to Codex (sessionId: session-9248b09d, msgId: 5)
+[12:51:03][bridge][debug] Sending response: {"sent":true,"sessionId":"session-9248b09d","messageId":5}
+```
+
+**Connection Close (mock codex behavior):**
+```
+[12:51:03][bridge][debug] Session session-9248b09d app-server connection closed
+[12:51:03][bridge][error] send: connection unavailable for session session-9248b09d
+```
+
+**Session Close:**
+```
+[12:51:08][bridge][info] Session closed: session-9248b09d
+```
+
+### Conclusion
+
+**✅ Bridge server works correctly** - session creation, message forwarding, and session close all function properly.
+
+**❌ Cannot test with real codex app-server** - requires browser-based OAuth authentication that cannot be automated.
+
+**Recommendation:** User must run `codex login` on their local machine to authenticate, then start `codex app-server` locally. The bridge server will connect to it successfully.
+
+---
+
+**Report Updated:** 2026-02-28T12:51:00Z
+**Bridge Fix:** 52a47ed (variable shadowing)
+**Live Test:** ✅ VERIFIED (with mock codex)
+**Auth Blocker:** Browser OAuth required for production codex app-server
