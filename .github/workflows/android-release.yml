@@ -33,6 +33,16 @@ jobs:
             flutter create . --platforms=android --project-name=codex_android
           fi
 
+      - name: Update Kotlin version for CI build
+        run: |
+          cd flutter-app
+          if [ -f android/settings.gradle ]; then
+            sed -i 's/org.jetbrains.kotlin.android" version "[^"]*"/org.jetbrains.kotlin.android" version "1.9.22"/' android/settings.gradle || true
+          fi
+          if [ -f android/build.gradle ]; then
+            sed -i 's/ext.kotlin_version *= *"[^"]*"/ext.kotlin_version = "1.9.22"/' android/build.gradle || true
+          fi
+
       - name: Verify signing secrets
         run: |
           [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ] || (echo "Missing ANDROID_KEYSTORE_BASE64" && exit 1)
