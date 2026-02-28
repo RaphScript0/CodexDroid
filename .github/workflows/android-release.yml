@@ -29,8 +29,15 @@ jobs:
       - name: Ensure Android project exists
         run: |
           cd flutter-app
-          if [ ! -d android ]; then
+          if [ ! -f android/app/build.gradle ]; then
             flutter create . --platforms=android --project-name=codex_android
+            # restore repo-specific manifest + network config if overwritten
+            if [ -f android/app/src/main/AndroidManifest.xml ]; then
+              git checkout -- android/app/src/main/AndroidManifest.xml || true
+            fi
+            if [ -f android/app/src/main/res/xml/network_security_config.xml ]; then
+              git checkout -- android/app/src/main/res/xml/network_security_config.xml || true
+            fi
           fi
 
       - name: Update Kotlin version for CI build
