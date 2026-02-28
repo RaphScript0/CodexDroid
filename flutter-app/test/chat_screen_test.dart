@@ -194,5 +194,29 @@ void main() {
 
       expect(find.text('Test message'), findsOneWidget);
     });
+
+    testWidgets('connection state colors are correct', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatScreen(websocketService: mockService),
+        ),
+      );
+
+      final disconnectedDot = tester.widget<Container>(
+        find.byWidgetPredicate((w) => w is Container && w.decoration is BoxDecoration),
+      ).decoration as BoxDecoration;
+      expect(disconnectedDot.color, Colors.grey);
+    });
+
+    testWidgets('app bar shows connection indicator', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatScreen(websocketService: mockService),
+        ),
+      );
+
+      expect(find.text('Disconnected'), findsOneWidget);
+      expect(find.byType(CircleAvatar), findsWidgets);
+    });
   });
 }

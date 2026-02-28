@@ -15,12 +15,14 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _isStreaming = false;
   String _currentStreamingMessage = '';
+  String? _lastDisplayedError;
 
   @override
   void initState() {
     super.initState();
     // List rebuilds are handled by ListenableBuilder for efficient updates
     _setupMessageListener();
+    _setupErrorListener();
   }
 
   @override
@@ -41,6 +43,43 @@ class _ChatScreenState extends State<ChatScreen> {
       });
       _scrollToBottom();
     });
+  }
+
+  void _setupErrorListener() {
+    // Listen for connection state changes to show error messages
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.websocketService.addListener(_checkForErrors);
+    });
+  }
+
+  void _checkForErrors() {
+    final state = widget.websocketService.connectionState;
+    final error = widget.websocketService.lastError;
+    
+    if (state == WsConnectionState.error && error != null && error != _lastDisplayedError) {
+      _lastDisplayedError = error;
+      _showErrorSnackBar(error);
+    } else if (state == WsConnectionState.connected) {
+      _lastDisplayedError = null;
+    }
+  }
+
+  void _showErrorSnackBar(String error) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Connection error: $error'),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'Dismiss',
+          textColor: Colors.white,
+          onPressed: () {
+            widget.websocketService.clearError();
+          },
+        ),
+      ),
+    );
   }
 
   void _scrollToBottom() {

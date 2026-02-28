@@ -101,6 +101,16 @@ void main() {
       expect(receivedMessages[0], 'msg1');
       expect(receivedMessages[1], 'msg2');
     });
+
+    test('lastError is null initially', () {
+      expect(service.lastError, isNull);
+    });
+
+    test('clearError sets lastError to null', () {
+      service.addListener(() {});
+      service.clearError();
+      expect(service.lastError, isNull);
+    });
   });
 
   group('WsConnectionState enum', () {

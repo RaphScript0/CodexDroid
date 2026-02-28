@@ -140,6 +140,11 @@ user: <message>    # User-sent messages (echo/local)
 - Ensure IP/port are correct in settings
 - Try local network vs. localhost (127.0.0.1 won't work from device)
 
+### Cleartext Traffic (ws://)
+
+The app supports cleartext WebSocket connections (ws://) via Android Network Security Config.
+No additional configuration needed - cleartext traffic is permitted by default.
+
 ### Build Issues
 
 ```bash

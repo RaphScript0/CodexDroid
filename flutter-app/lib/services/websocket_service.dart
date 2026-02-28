@@ -15,6 +15,7 @@ class WebSocketService extends ChangeNotifier {
   final StreamController<String> _messageController = StreamController<String>.broadcast();
   Timer? _reconnectTimer;
   bool _isReconnecting = false;
+  String? _lastError;
 
   WebSocketService({
     required this.serverIp,
@@ -24,6 +25,11 @@ class WebSocketService extends ChangeNotifier {
   WsConnectionState get connectionState => _connectionState;
   List<String> get messages => List.unmodifiable(_messages);
   Stream<String> get messageStream => _messageController.stream;
+  String? get lastError => _lastError;
+  void clearError() {
+    _lastError = null;
+    notifyListeners();
+  }
 
   void connect() {
     if (_connectionState == WsConnectionState.connected || 
@@ -117,7 +123,9 @@ class WebSocketService extends ChangeNotifier {
 
   void _handleError(dynamic error) {
     debugPrint('WebSocket error: $error');
+    _lastError = error.toString();
     _setConnectionState(WsConnectionState.error);
+    notifyListeners();
     
     // Auto-reconnect on error
     if (!_isReconnecting) {
